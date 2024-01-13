@@ -13,9 +13,11 @@ use embassy_stm32::{bind_interrupts, eth, peripherals, rng, Config};
 use embassy_time::Timer;
 use embedded_io_async::Write;
 use embedded_nal_async::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpConnect};
+use embassy_net::{Ipv4Address, Ipv4Cidr};
 use rand_core::RngCore;
 use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
+use heapless::Vec;
 
 bind_interrupts!(struct Irqs {
     ETH => eth::InterruptHandler;
@@ -70,24 +72,30 @@ async fn main(spawner: Spawner) -> ! {
         p.ETH,
         Irqs,
         p.PA1,
+        p.PC3,
         p.PA2,
         p.PC1,
         p.PA7,
         p.PC4,
         p.PC5,
+        p.PB0,
+        p.PB1,
         p.PG13,
-        p.PB13,
+        p.PG12,
+        p.PC2,
+        p.PE2,
         p.PG11,
-        GenericSMI::new(0),
+        GenericSMI::new(1),
         mac_addr,
     );
+    info!("Device created");
 
-    let config = embassy_net::Config::dhcpv4(Default::default());
-    //let config = embassy_net::Config::ipv4_static(embassy_net::StaticConfigV4 {
-    //    address: Ipv4Cidr::new(Ipv4Address::new(10, 42, 0, 61), 24),
-    //    dns_servers: Vec::new(),
-    //    gateway: Some(Ipv4Address::new(10, 42, 0, 1)),
-    //});
+    // let config = embassy_net::Config::dhcpv4(Default::default());
+    let config = embassy_net::Config::ipv4_static(embassy_net::StaticConfigV4 {
+       address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 100, 5), 24),
+       dns_servers: Vec::new(),
+       gateway: Some(Ipv4Address::new(192, 168, 100, 1)),
+    });
 
     // Init network stack
     static STACK: StaticCell<Stack<Device>> = StaticCell::new();
@@ -103,7 +111,7 @@ async fn main(spawner: Spawner) -> ! {
     unwrap!(spawner.spawn(net_task(stack)));
 
     // Ensure DHCP configuration is up before trying connect
-    stack.wait_config_up().await;
+    // stack.wait_config_up().await;
 
     info!("Network task initialized");
 
@@ -112,7 +120,7 @@ async fn main(spawner: Spawner) -> ! {
 
     loop {
         // You need to start a server on the host machine, for example: `nc -l 8000`
-        let addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(10, 42, 0, 1), 8000));
+        let addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(192, 168, 100, 1), 8000));
 
         info!("connecting...");
         let r = client.connect(addr).await;
